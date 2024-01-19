@@ -1,69 +1,59 @@
 class Content:
     """
-    Creates a reference to the attributes of a website, which is identified by its url.
-    Users do not access this class so make it nonpublic.
-        This ensures that _text and _article_links remain as lists
+    Creates a reference object for storage and retrival a Wikipedia article's visible attributes.
+    A reference object for a Wikipedia article is identified by its url attribute.
     """
     def __init__(self, url):
-        self._url = url
-        self._text = None
-        self._frequency_list = None
-        self._article_links = None
-        # For Testing Purposes
-        self._removed_text = None
+        self.url = url
+        self.text = None
+        self.frequency_list = None
+        self.article_links = None
+        self.removed_text = None
 
-    # two websites (or objects) are the same when their urls are the same
     def __eq__(self, other):
-        return other._url is self._url
+        """Two Wikipedia articles (objects) are the same when their urls are the same."""
+        return other.url is self.url
 
     def __ne__(self, other):
         return not (self == other)
 
-    def getUrl(self):
-        return self._url
+    def get_url(self):
+        return self.url
 
-    def getText(self):
-        return self._text
+    def get_text(self):
+        return self.text
 
-    def getRemovedText(self):
-        return self._removed_text
+    def get_removed_text(self):
+        return self.removed_text
 
-    def getLinks(self):
-        return self._article_links
-
-    def getLink(self, index):
-        if index > len(self._article_links):
-            raise IndexError(f"No Article at index {index}")
-        return self._article_links[index]
+    def get_links(self):
+        return self.article_links
 
     # Mutators _____________________
-    def storeText(self, text):
+    def store_text(self, text):
         """
-        Stores a list of the extracted text from the webpage that is used in the frequency list.
+        Stores a list containing the extracted visible words from the Wikipedia article.
         """
-        if text:
-            self._text = text
+        self.text = text
 
-    def storeRemovedText(self, removed_text):
-        if removed_text:
-            self._removed_text = removed_text
+    def store_removed_text(self, removed_text):
+        """
+        Primarily for testing purposes.
+        Stores a list containing the non-extracted (non-words) visible text from the Wikipedia article.
+        """
+        self.removed_text = removed_text
 
-    def storeFrequencyList(self, frequency_list):
+    def store_links(self, article_links):
         """
-        Stores a dict of {word : frequency} in the self.frequency_list attribute of the webpage's Content object.
+        Stores a list of the artile links displayed on the Wikipedia article.
         """
-        # Can be None
-        if isinstance(frequency_list, dict):
-            self._frequency_list = frequency_list
-        else:
-            raise AttributeError(f"{frequency_list} is not a dictionary!")
+        self.article_links = article_links
 
-    def storeLinks(self, article_links):
+    def store_frequency_list(self, frequency_list):
         """
-        Stores a list of article links in the self._article_links attribute of the webpage's Content object.
+        Stores the Wikipedia article's frequency list: a dictionary in the format {word : frequency}.
         """
-        # Can be none
-        if isinstance(article_links, list):
-            self._article_links = article_links
-        else:
-            raise AttributeError(f"{article_links} is not a list!")
+        self.frequency_list = frequency_list
+
+
+# TODO note for testing -  all of these may be returned as NONE
