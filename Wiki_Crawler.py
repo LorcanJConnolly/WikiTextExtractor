@@ -6,27 +6,29 @@ import re
 import requests
 # Handling punctuation
 import string
-# Rate Liminting
+# Rate Limiting
 import time
 from openpyxl import Workbook
 from openpyxl.worksheet.table import Table, TableStyleInfo
 # FIXME: dont import unnecessary modules
 from Content import Content
 
+
 class Crawler:
     """
-    Contains a list which maintains a reference to the visited websites.
+    Creates an instance of a WikiCrawler, starting from the root Wikipedia article and traversing through its
+    displayed articles to extract displayed words.
     """
     def __init__(self, root):
         self.root = root
-        self.base_url, self.path = self.splitURL()
+        self.base_url, self.path = self.split_url()
         self.visited = []
 
     def __iter__(self):
         for website in self.visited:
             yield website.getUrl()
 
-    def splitURL(self):
+    def split_url(self):
         """
         Splits the root Wikipedia url into its base_url and path
         """
@@ -36,31 +38,35 @@ class Crawler:
         path = f"{components.path}"
         return base_url, path
 
-    def getHTML(self, url):
+    @staticmethod
+    def get_html(url):
+        """
+        Extracts the html and returns it as a BeautifulSoup object.
+        """
         try:
             req = requests.get(url)
         except requests.exceptions.RequestException:
+            # TODO raise error?
             return None
         return BeautifulSoup(req.text, 'html.parser')
 
-    def getContent(self, url, depth, width):
+    def get_content(self, url):
         """
-        Extracts the content from BeautifulSoup object and stores it as an instance of the Website class, returns the
-        reference to this instance.
+        Extracts the content from BeautifulSoup object and stores it as an instance of the Content class.
+        Returns the created instance of the Content class.
         """
         print(f"in getContent for: {url}")
-        bs = self.getHTML(url)
-        # Invalid url content.
+        bs = self.get_html(url)
         if bs is None:
             print(f"The url {url} has no HTML content")
             return None
-        # Create object in Content class.
+        # FIXME check the url BEFORE creating an object --> less memory allocation
         webpage = Content(url)
-        if webpage.getUrl() in self.visited:
+        if webpage.get_url() in self.visited:
             print(f"already visited {url} before")
             return None
         # --------------------------------------------------
-        # Remove hidden elements from Body Content
+        # Remove hidden elements from the Body Content div tag
         body_content = bs.find('div', {'id': 'bodyContent'})
         for element in body_content.find_all(True, {'style': True}):
             if 'display:none' in element['style']:
@@ -70,9 +76,9 @@ class Crawler:
         hidden_cat = body_content.find('div', {'id': 'mw-hidden-catlinks'})
         if hidden_cat is not None:
             hidden_cat.decompose()
-        printfooter = body_content.find('div', {'class': 'printfooter'})
-        if printfooter is not None:
-            printfooter.decompose()
+        print_footer = body_content.find('div', {'class': 'printfooter'})
+        if print_footer is not None:
+            print_footer.decompose()
         # --------------------------------------------------
         # Get links
         article_links = []
@@ -83,24 +89,27 @@ class Crawler:
         # Get text
         title = bs.find('h1', {'id': 'firstHeading'}).get_text(separator=' ')
         raw_text = ' '.join([title, body_content.get_text(separator=' ')])
-        clean_text_list, removed_text = self.cleanText(raw_text, return_removed=True)
+        clean_text_list, removed_text = self.clean_text(raw_text, return_removed=True)
         # --------------------------------------------------
         # Create object in Content class.
-        # TODO: make sure these are in correct order
-        webpage.storeText(clean_text_list)
-        webpage.storeRemovedText(removed_text)
-        webpage.storeLinks(article_links)
-        self.visited.append(webpage.getUrl())
+        webpage.store_text(clean_text_list)
+        webpage.store_removed_text(removed_text)
+        webpage.store_links(article_links)
+        self.visited.append(webpage.get_url())
         return webpage
 
-    def cleanText(self, raw_text, return_removed=False):
+    @staticmethod
+    def clean_text(raw_text, return_removed=False):
+        """
+        Uses regular expressions to return a list containing the displayed words.
+        For testing, can return the removed text.
+        """
         removed_text = False
         # TODO maybe include . in middle of a word for abbreviations
         is_word_re = re.compile(r'^[\'\"(]?[a-zA-Z]+[a-zA-Z-\'.]*[a-zA-Z]+[\',!\")?:;.]*$|^[a-zA-Z]$')
         # horizontal bar, figure dash, em dash, en dash
         translation_table = str.maketrans('―‒—–’/', "----\' ")
         raw_text = raw_text.translate(translation_table)
-        raw_text_list = raw_text.split()
         if return_removed is True:
             removed_text = [text for text in raw_text.split() if not is_word_re.match(text)]
         clean_text_list = [text for text in raw_text.split() if is_word_re.match(text)]
@@ -108,26 +117,29 @@ class Crawler:
 
     def parse(self, url=None, depth=None, width=None, extract_excel=False, file_directory=None):
         """
+        It's a method that creates a visible iterator using that paradigm.
         """
         # TODO maybe add a method of returning them in order of rank?
+        # FIXME create the frequency list as the crawler crawls.
         frequency_list = {}
         if url is None:
             url = self.root
-        for webpage_content in self.breadthFirstSearch(url, depth, width):
-            frequency_list = self.createFrequncyList(webpage_content, frequency_list)
+        for webpage_content in self.breadth_first_traversal(url, depth, width):
+            frequency_list = self.breadth_first_traversal(webpage_content, frequency_list)
         # --------------------------------------------------
         # Extract to Excel
         if extract_excel is True:
             file_name = input("What would you like to name your Excel file? ")
-            self.createExcel(file_name, file_directory, frequency_list)
+            self.create_excel(file_name, file_directory, frequency_list)
         # --------------------------------------------------
         else:
             for word, frequency in frequency_list.items():
                 print(f"{word} : {frequency}")
         return "DONE!"
 
-    def breadthFirstSearch(self, url, depth=None, width=None):
+    def breadth_first_traversal(self, url, depth=None, width=None):
         """
+        Preforms a breath first traversal of the article links displayed on a Wikipedia article.
         """
         queue = [url]
         curr_depth = 0
@@ -135,23 +147,21 @@ class Crawler:
         while queue:
             curr_url = queue.pop(0)
             time.sleep(1)
-            webpage = self.getContent(curr_url, curr_depth, curr_width)
+            webpage = self.get_content(curr_url)
             if webpage is not None:
                 yield webpage
                 if depth is None or curr_depth <= depth:
-                    for link in webpage.getLinks():
+                    for link in webpage.get_links():
                         if width is None or curr_width < width:
                             queue.append(link)
                             curr_width += 1
                     curr_depth += 1
                     curr_width = 0
 
-    def createFrequncyList(self, webpage, frequency_list):
+    @staticmethod
+    def create_frequency_list(webpage, frequency_list):
         """
-        {word : frequency}
-        :param webpage:
-        :param frequency_list:
-        :return:
+        Creates and returns the frequency list of the entire dataset gathered by the WikiCrawler.
         """
         text = webpage.getText()
         for word in text:
@@ -163,13 +173,18 @@ class Crawler:
                     frequency_list[clean_word.lower()] = 1
         return frequency_list
 
-    def createExcel(self, name, file_directory, frequency_list):
+    @staticmethod
+    def create_excel(name, file_directory, frequency_list):
+        """
+        Creates an Excel workbook which displays the gathered data and creates a log(Rank) vs log(Frequency) plot to
+         analyse Zipf's Law in the data.
+        """
         wb = Workbook()
         ws = wb.active
         ws.append(["Word", "Frequency"])
         for word, frequency in frequency_list.items():
             ws.append([word, frequency])
-        table = Table(displayName="Freqeuncy_List", ref=f"A1:B{len(frequency_list)+1}")
+        table = Table(displayName="Frequency_List", ref=f"A1:B{len(frequency_list)+1}")
         # Applying a style to the table
         style = TableStyleInfo(
             name="TableStyleMedium9",
