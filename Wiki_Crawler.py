@@ -155,7 +155,7 @@ class Crawler:
                     for link in webpage.get_links():
                         # TODO may return None
                         # TODO if it does, this for loop above will not be entered
-                        if width is None or curr_width < width:
+                        if width is None or curr_width <= width:
                             queue.append(link)
                             curr_width += 1
                     curr_depth += 1
