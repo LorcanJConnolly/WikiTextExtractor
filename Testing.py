@@ -48,7 +48,7 @@ class TestMain(unittest.TestCase):
     """
 
     @patch('builtins.input', side_effect=["", "https://www.wikihow.com/Main-Page", 7, False,
-                                               r"https://en.wikipedia.org/wiki/Main_Page"])
+                                          r"https://en.wikipedia.org/wiki/Main_Page"])
     def test_get_user_root(self, mock_input):
         self.assertEqual(get_user_root(), r"https://en.wikipedia.org/wiki/Main_Page")
 
@@ -65,16 +65,10 @@ class TestMain(unittest.TestCase):
             with self.subTest(url=url):
                 self.assertTrue(is_wiki_url(url))
 
-    # FIXME - inputs based on changes to the method
-    @patch('builtins.input', side_effect=[-5, 5, 4, -4, "", 3, 1, "", 5000, 10, "a", "b",
-                                          10, 10])
+    @patch('builtins.input', side_effect=["-5", "a", "5.5", "5.5", "10", "10"])
     def test_invalid_journey(self, mock_input):
         self.assertEqual(get_user_journey(), (10, 10))
 
-    @patch('builtins.input', side_effect=[-5,-10, "a", 5.5, None, 10, 10])
-    def test_get_positive_value(self):
-        # self.assertEqual(get_positive_input(), (10, 10))
-        pass
 
 if __name__ == '__main__':
     unittest.main()
