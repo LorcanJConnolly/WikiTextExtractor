@@ -139,7 +139,7 @@ class Crawler:
                 print(f"{word} : {frequency}")
         return "DONE!"
 
-    def breadth_first_traversal(self, url, depth=None, width=None):
+    def breadth_first_traversal(self, url, depth, width=None):
         """
         Preforms a breath first traversal of the article links displayed on a Wikipedia article.
         """
