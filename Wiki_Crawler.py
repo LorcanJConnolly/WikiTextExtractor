@@ -8,11 +8,16 @@ import requests
 import string
 # Rate Limiting
 import time
+# Frequency list
+from collections import Counter
+# Removing punctuation from words
+from string import punctuation
+
 from openpyxl import Workbook
 from openpyxl.worksheet.table import Table, TableStyleInfo
 # FIXME: dont import unnecessary modules
+# TODO: check for consistent use of '' and ""
 from Content import Content
-
 
 
 class Crawler:
@@ -42,6 +47,9 @@ class Crawler:
         """
         Extracts the html and returns it as a BeautifulSoup object.
         """
+        if not Crawler.is_wiki_url(url):
+            print(f"The url {url} is not a wikipedia article link.")
+            return None
         try:
             req = requests.get(url)
         except requests.exceptions.RequestException:
@@ -49,18 +57,29 @@ class Crawler:
             return None
         return BeautifulSoup(req.text, 'html.parser')
 
+    @staticmethod
+    def is_wiki_url(url):
+        try:
+            components = urlsplit(url)
+        except TypeError:
+            print(f"TypeError splitting the url of {url}")
+            return False
+        netloc = components.netloc
+        if netloc == "en.wikipedia.org" or netloc == "simple.wikipedia.org":
+            return True
+        else:
+            return False
+
     def get_content(self, url):
         """
         Extracts the content from BeautifulSoup object and stores it as an instance of the Content class.
         Returns the created instance of the Content class.
         """
-        print(f"in getContent for: {url}")
-        # FIXME: check if wiki link here
+        # print(f"in getContent for: {url}")
         bs = self.get_html(url)
         if bs is None:
             print(f"The url {url} has no HTML content")
             return None
-        # FIXME check the url BEFORE creating an object --> less memory allocation
         webpage = Content(url)
         if webpage.get_url() in self.visited:
             print(f"Already visited {url} before")
@@ -73,10 +92,7 @@ class Crawler:
                 element.decompose()
         for element in body_content.find_all('code'):
             element.decompose()
-        hidden_cat = body_content.find('div', {'id': 'mw-hidden-catlinks'})
-        # FIXME: some hidden categories are shown sometimes.
-        # hidden: class="mw-hidden-catlinks mw-hidden-cats-hidden">
-        # shown: class="mw-hidden-catlinks mw-hidden-cats-ns-shown">
+        hidden_cat = body_content.find('div', {'class': 'mw-hidden-catlinks mw-hidden-cats-hidden'})
         if hidden_cat is not None:
             hidden_cat.decompose()
         print_footer = body_content.find('div', {'class': 'printfooter'})
@@ -108,36 +124,26 @@ class Crawler:
         For testing, can return the removed text.
         """
         removed_text = False
-        # TODO maybe include . in middle of a word for abbreviations
-        is_word_re = re.compile(r'^[\'\"(]?[a-zA-Z]+[a-zA-Z-\'.]*[a-zA-Z]+[\',!\")?:;.]*$|^[a-zA-Z]$')
+        # TODO - test the second part of the re
+        is_word_re = re.compile(r'^[\'\"(]?[a-zA-Z]+[a-zA-Z-\'.]*[a-zA-Z]+[\',!\")?:;.]*$'
+                                r'|^[\'\"(]?[aAI][\',!\")?:;.]*$')
         # Horizontal bar, figure dash, em dash, en dash translation.
         translation_table = str.maketrans('―‒—–’/', "----\' ")
         raw_text = raw_text.translate(translation_table)
         if return_removed is True:
             removed_text = [text for text in raw_text.split() if not is_word_re.match(text)]
-        clean_text_list = [text for text in raw_text.split() if is_word_re.match(text)]
+        clean_text_list = [text.strip(string.punctuation).lower()
+                           for text in raw_text.split() if is_word_re.match(text)]
         return clean_text_list, removed_text
 
     def parse(self, url=None, depth=None, width=None, extract_excel=False, file_directory=None):
         """
         It's a method that creates a visible iterator using that paradigm.
         """
-        # TODO maybe add a method of returning them in order of rank?
-        # FIXME create the frequency list as the crawler crawls.
-        frequency_list = {}
+        frequency_list = Counter()
         for webpage in self.breadth_first_traversal(url, depth, width):
-            frequency_list = self.create_frequency_list(webpage, frequency_list)
-        # --------------------------------------------------
-        # Extract to Excel
-        if extract_excel is True:
-            file_name = input("What would you like to name your Excel file? ")
-            self.create_excel(file_name, file_directory, frequency_list)
-        # --------------------------------------------------
-        # Printing the Frequency List
-        else:
-            for word, frequency in frequency_list.items():
-                print(f"{word} : {frequency}")
-        return "DONE!"
+            frequency_list.update(webpage.get_text())
+        return frequency_list.most_common()
 
     def breadth_first_traversal(self, url, depth, width=None):
         """
@@ -147,14 +153,13 @@ class Crawler:
         curr_depth, curr_width = 0, 0
         while queue:
             curr_url = queue.pop(0)
+            # Decrease the speed of the webscraper for friendliness.
             time.sleep(1)
             webpage = self.get_content(curr_url)  # creates a webpage object from the url
             if webpage is not None:
                 yield webpage
                 if curr_depth < depth:
                     for link in webpage.get_links():
-                        # TODO may return None
-                        # TODO if it does, this for loop above will not be entered
                         if width is None or curr_width <= width:
                             queue.append(link)
                             curr_width += 1
@@ -162,22 +167,9 @@ class Crawler:
                     curr_width = 0
             else:
                 # raise error - url returned none from get content
+                # But ultimately nothing will happen - None - no links extracted - no links to traverse - traversal stop
+                # Do we want to return where the scraper stopped unexpectedly?
                 pass
-
-    @staticmethod
-    def create_frequency_list(webpage, frequency_list):
-        """
-        Creates and returns the frequency list of the entire dataset gathered by the WikiCrawler.
-        """
-        text = webpage.get_text()
-        for word in text:
-            clean_word = word.strip(string.punctuation)
-            if len(clean_word) > 1 or (clean_word.lower() == "a" or clean_word.lower() == "i"):
-                if clean_word.lower() in frequency_list:
-                    frequency_list[clean_word.lower()] += 1
-                else:
-                    frequency_list[clean_word.lower()] = 1
-        return frequency_list
 
     @staticmethod
     def create_excel(name, file_directory, frequency_list):

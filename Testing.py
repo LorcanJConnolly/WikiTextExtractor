@@ -59,7 +59,10 @@ class TestMain(unittest.TestCase):
                 self.assertFalse(is_wiki_url(url))
 
     def test_is_wiki_url(self):
-        # TODO - test other types of wiki articles: ___, ___, ___.
+        #TODO - test other types of wiki articles: ___, ___, ___.  --- internal, external, category, file, template,
+        # special pages, interlanguage links
+        # FIXME is_wiki_url in Crawler now
+
         valid_urls = [r"https://en.wikipedia.org/wiki/Main_Page"]
         for url in valid_urls:
             with self.subTest(url=url):
