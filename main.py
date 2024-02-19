@@ -1,9 +1,7 @@
 from Wiki_Crawler import Crawler
-from Content import Content
-
 from urllib.parse import urlsplit
 from openpyxl import Workbook
-from openpyxl.worksheet.table import Table, TableStyleInfo
+from openpyxl.worksheet.table import Table
 
 
 def get_user_root():
@@ -67,32 +65,23 @@ def get_user_output():
             continue
 
 
-def create_excel(fl):
+def create_excel(fl, rt=None):
     """
        Creates an Excel workbook which displays the gathered data and creates a log(Rank) vs log(Frequency) plot to
         analyse Zipf's Law in the data.
        """
     wb = Workbook()
-    ws = wb.active
-    ws.append(["Rank", "Word", "Frequency"])
+    ws1 = wb.active
+    ws1.append(["Rank", "Word", "Frequency"])
     rank = 0
     last_frequency = None
     for word, frequency in fl:
         if frequency != last_frequency:
             rank += 1
-        ws.append([rank, word, frequency])
+        ws1.append([rank, word, frequency])
         last_frequency = frequency
     table = Table(displayName="Frequency_List", ref=f"A1:C{len(fl) + 1}")
-    # Applying a style to the table
-    # style = TableStyleInfo(
-    #     name="TableStyleMedium9",
-    #     showFirstColumn=False,
-    #     showLastColumn=False,
-    #     showRowStripes=True,
-    #     showColumnStripes=True
-    # )
-    # table.tableStyleInfo = style
-    ws.add_table(table)
+    ws1.add_table(table)
     desktop_path = r"C:\Users\lconn\Desktop"
     wb.save(f"{desktop_path}\\Test_output.xlsx")
     print(f"Your file is saved under the name in the directory")
@@ -108,7 +97,11 @@ def main():
     user_depth, user_width = get_user_journey()
 
     crawler = Crawler(root=user_root)
-    fl = crawler.parse(url=user_root, depth=user_depth, width=user_width, extract_excel=False, file_directory=None)
+    fl, rt = crawler.parse(url=user_root, depth=user_depth, width=user_width)
+    if rt:
+        print("--- Printing Removed Text ---")
+        for lst in rt:
+            print(lst)
     if fl:
         user_output = get_user_output()
         if user_output == "csv":

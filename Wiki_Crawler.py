@@ -4,8 +4,6 @@ from bs4 import BeautifulSoup
 import re
 # HTTP
 import requests
-# Handling punctuation
-import string
 # Rate Limiting
 import time
 # Frequency list
@@ -13,9 +11,7 @@ from collections import Counter
 # Removing punctuation from words
 from string import punctuation
 
-from openpyxl import Workbook
-from openpyxl.worksheet.table import Table, TableStyleInfo
-# FIXME: dont import unnecessary modules
+# FIXME: Clean up module import.
 # TODO: check for consistent use of '' and ""
 from Content import Content
 
@@ -65,6 +61,7 @@ class Crawler:
             print(f"TypeError splitting the url of {url}")
             return False
         netloc = components.netloc
+        # FIXME - needs to be all one word too! (https://en.wikipedia.org/wiki/Andr%C3%A9_M._Levesque returns) True!
         if netloc == "en.wikipedia.org" or netloc == "simple.wikipedia.org":
             return True
         else:
@@ -75,7 +72,7 @@ class Crawler:
         Extracts the content from BeautifulSoup object and stores it as an instance of the Content class.
         Returns the created instance of the Content class.
         """
-        # print(f"in getContent for: {url}")
+        print(f"--- In {url} ---")
         bs = self.get_html(url)
         if bs is None:
             print(f"The url {url} has no HTML content")
@@ -86,18 +83,70 @@ class Crawler:
             return None
         # --------------------------------------------------
         # Remove hidden elements from the Body Content div tag
+        """
+        <div id="mw-hidden-catlinks" class="mw-hidden-catlinks mw-hidden-cats-ns-shown">
+        
+        Problem: removing "hidden" and "hide" class tags will remove this.
+        https://en.wikipedia.org/wiki/Category:Dead-end_pages has shown hidden catlinks
+        https://en.wikipedia.org/wiki/Andr%C3%A9_M._Levesque has "hide-when-compact"
+        
+        Remove:
+        Style: display:none (can be stupid and be display :none) 
+        code 
+        'class': 'mw-hidden-catlinks mw-hidden-cats-hidden'
+        'div', {'class': 'printfooter'
+        
+        Add back:
+         title = bs.find('h1', {'id': 'firstHeading'}).get_text(separator=' ')
+         class="mw-hidden-catlinks mw-hidden-cats-ns-shown"
+        """
+        # FIXME implement this in readable manor.
         body_content = bs.find('div', {'id': 'bodyContent'})
+        # ----TESTING----
+        tags1 = 0
+        for tag in body_content.find_all():
+            if 'class' in tag.attrs:
+                for element in tag['class']:
+                    if 'hide' in element or 'hidden' in element:
+                        tags1 += 1
+                        print("hide/hidden:", tag)
+                    if 'printfooter' in element:
+                        tags1 += 1
+                        print("printfooter:", tag)
+            if 'style' in tag.attrs:
+                if 'display:none' in tag['style']:
+                    tags1 += 1
+                    print("display:none", tag)
+            if 'code' in tag.attrs:
+                tags1 += 1
+                print(tag['code'])
+        # ---------------
+        # for element in body_content.find_all(True, {'style': True}):
+        #     if 'display:none' in element['style']:
+        #         print("this is the tag to remove:", element)
+        #         print(element['style'])
+        #         element.decompose()
+        tags2 = 0
         for element in body_content.find_all(True, {'style': True}):
-            if 'display:none' in element['style']:
+            if 'style' in element.attrs and 'display:none' in element['style']:
+                tags2 += 1
+                print(element)
                 element.decompose()
         for element in body_content.find_all('code'):
+            tags2 += 1
+            print(element)
             element.decompose()
         hidden_cat = body_content.find('div', {'class': 'mw-hidden-catlinks mw-hidden-cats-hidden'})
         if hidden_cat is not None:
+            tags2 += 1
+            print(hidden_cat)
             hidden_cat.decompose()
         print_footer = body_content.find('div', {'class': 'printfooter'})
         if print_footer is not None:
+            tags2 += 1
+            print(print_footer)
             print_footer.decompose()
+        print(f"--- tags1: {tags1}, tags2: {tags2} ---")
         # --------------------------------------------------
         # Get links
         article_links = []
@@ -118,13 +167,12 @@ class Crawler:
         return webpage
 
     @staticmethod
-    def clean_text(raw_text, return_removed=False):
+    def clean_text(raw_text, return_removed=True):
         """
         Uses regular expressions to return a list containing the displayed words.
         For testing, can return the removed text.
         """
         removed_text = False
-        # TODO - test the second part of the re
         is_word_re = re.compile(r'^[\'\"(]?[a-zA-Z]+[a-zA-Z-\'.]*[a-zA-Z]+[\',!\")?:;.]*$'
                                 r'|^[\'\"(]?[aAI][\',!\")?:;.]*$')
         # Horizontal bar, figure dash, em dash, en dash translation.
@@ -132,17 +180,21 @@ class Crawler:
         raw_text = raw_text.translate(translation_table)
         if return_removed is True:
             removed_text = [text for text in raw_text.split() if not is_word_re.match(text)]
-        clean_text_list = [text.strip(string.punctuation).lower()
+        clean_text_list = [text.strip(punctuation).lower()
                            for text in raw_text.split() if is_word_re.match(text)]
         return clean_text_list, removed_text
 
-    def parse(self, url=None, depth=None, width=None, extract_excel=False, file_directory=None):
+    def parse(self, url=None, depth=None, width=None):
         """
         It's a method that creates a visible iterator using that paradigm.
         """
         frequency_list = Counter()
+        removed_text = []
         for webpage in self.breadth_first_traversal(url, depth, width):
             frequency_list.update(webpage.get_text())
+            removed_text.append(webpage.get_removed_text())
+        if removed_text:
+            return frequency_list.most_common(), removed_text
         return frequency_list.most_common()
 
     def breadth_first_traversal(self, url, depth, width=None):
@@ -165,35 +217,4 @@ class Crawler:
                             curr_width += 1
                     curr_depth += 1
                     curr_width = 0
-            else:
-                # raise error - url returned none from get content
-                # But ultimately nothing will happen - None - no links extracted - no links to traverse - traversal stop
-                # Do we want to return where the scraper stopped unexpectedly?
-                pass
 
-    @staticmethod
-    def create_excel(name, file_directory, frequency_list):
-        """
-        Creates an Excel workbook which displays the gathered data and creates a log(Rank) vs log(Frequency) plot to
-         analyse Zipf's Law in the data.
-        """
-        wb = Workbook()
-        ws = wb.active
-        ws.append(["Word", "Frequency"])
-        for word, frequency in frequency_list.items():
-            ws.append([word, frequency])
-        table = Table(displayName="Frequency_List", ref=f"A1:B{len(frequency_list)+1}")
-        # Applying a style to the table
-        style = TableStyleInfo(
-            name="TableStyleMedium9",
-            showFirstColumn=False,
-            showLastColumn=False,
-            showRowStripes=True,
-            showColumnStripes=True
-        )
-        table.tableStyleInfo = style
-        ws.add_table(table)
-        if file_directory:
-            wb.save(f"{file_directory}/{name}.xlsx")
-        else:
-            wb.save(f"{name}.xlsx")
