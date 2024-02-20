@@ -82,71 +82,18 @@ class Crawler:
             print(f"Already visited {url} before")
             return None
         # --------------------------------------------------
-        # Remove hidden elements from the Body Content div tag
-        """
-        <div id="mw-hidden-catlinks" class="mw-hidden-catlinks mw-hidden-cats-ns-shown">
-        
-        Problem: removing "hidden" and "hide" class tags will remove this.
-        https://en.wikipedia.org/wiki/Category:Dead-end_pages has shown hidden catlinks
-        https://en.wikipedia.org/wiki/Andr%C3%A9_M._Levesque has "hide-when-compact"
-        
-        Remove:
-        Style: display:none (can be stupid and be display :none) 
-        code 
-        'class': 'mw-hidden-catlinks mw-hidden-cats-hidden'
-        'div', {'class': 'printfooter'
-        
-        Add back:
-         title = bs.find('h1', {'id': 'firstHeading'}).get_text(separator=' ')
-         class="mw-hidden-catlinks mw-hidden-cats-ns-shown"
-        """
-        # FIXME implement this in readable manor.
         body_content = bs.find('div', {'id': 'bodyContent'})
-        # ----TESTING----
-        tags1 = 0
-        for tag in body_content.find_all():
-            if 'class' in tag.attrs:
-                for element in tag['class']:
-                    if 'hide' in element or 'hidden' in element:
-                        tags1 += 1
-                        print("hide/hidden:", tag)
-                    if 'printfooter' in element:
-                        tags1 += 1
-                        print("printfooter:", tag)
-            if 'style' in tag.attrs:
-                if 'display:none' in tag['style']:
-                    tags1 += 1
-                    print("display:none", tag)
-            if 'code' in tag.attrs:
-                tags1 += 1
-                print(tag['code'])
-        # ---------------
-        # for element in body_content.find_all(True, {'style': True}):
-        #     if 'display:none' in element['style']:
-        #         print("this is the tag to remove:", element)
-        #         print(element['style'])
-        #         element.decompose()
-        tags2 = 0
         for element in body_content.find_all(True, {'style': True}):
-            if 'style' in element.attrs and 'display:none' in element['style']:
-                tags2 += 1
-                print(element)
+            if 'display:none' in element['style']:
                 element.decompose()
         for element in body_content.find_all('code'):
-            tags2 += 1
-            print(element)
             element.decompose()
         hidden_cat = body_content.find('div', {'class': 'mw-hidden-catlinks mw-hidden-cats-hidden'})
         if hidden_cat is not None:
-            tags2 += 1
-            print(hidden_cat)
             hidden_cat.decompose()
         print_footer = body_content.find('div', {'class': 'printfooter'})
         if print_footer is not None:
-            tags2 += 1
-            print(print_footer)
             print_footer.decompose()
-        print(f"--- tags1: {tags1}, tags2: {tags2} ---")
         # --------------------------------------------------
         # Get links
         article_links = []

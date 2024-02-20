@@ -82,8 +82,7 @@ def create_excel(fl, rt=None):
         last_frequency = frequency
     table = Table(displayName="Frequency_List", ref=f"A1:C{len(fl) + 1}")
     ws1.add_table(table)
-    desktop_path = r"C:\Users\lconn\Desktop"
-    wb.save(f"{desktop_path}\\Test_output.xlsx")
+    wb.save("Test_output.xlsx")
     print(f"Your file is saved under the name in the directory")
 
 
